@@ -1,0 +1,81 @@
+########################### Dataframe
+ID<-c()
+for (i in 1:40) {
+  ID[i]<-ifelse(i<10,paste0("ID-0",i),
+                   paste0("ID-",i))
+}
+set.seed(123)
+T1<-c(sample(1:20,39,replace=T),40) # 39 measurements between 1-20, with one outlier.
+T2<-c(sample(11:40,40,replace=T)) # 40 measurements between 21-40.
+T3<-c(11,sample(31:60,39,replace=T)) # 39 measurements between 41-60, with one outlier.
+Factor<-c(rep(c("Low","High"),by=20))
+df<-data.frame(ID,Factor, T1, T2, T3)
+View(df)
+
+df$Factor<-ordered(df$Factor,levels=c("Low","High"))
+
+library(tidyr)
+DF<-gather(df,Time, Measure,3:5)
+View(DF)
+
+DF$Time[DF$Time=="T1"]<-"Time 01"
+DF$Time[DF$Time=="T2"]<-"Time 02"
+DF$Time[DF$Time=="T3"]<-"Time 03"
+
+DF$Time<-as.factor(DF$Time)
+
+########################### Default
+library(ggplot2)
+ggplot(DF,aes(x=Time, y=Measure,fill=Factor))+geom_boxplot()+theme_bw()
+
+########################### Whiskers
+(p1<-ggplot(DF,aes(x=Time, y=Measure,fill=Factor))+stat_boxplot(geom = "errorbar")+
+  geom_boxplot()+theme_bw())
+
+########################### Labeling and scaling axes
+windows(20,10)
+(p2<-p1+labs(x = "", y = "Measure (unit)")+
+  coord_cartesian(ylim=c(0,60))+scale_y_continuous(breaks=seq(0,60,5))+
+  theme(text = element_text(size=15)))
+
+########################### Thumbnail/Changing colours
+color<-c("olivedrab2","steelblue")
+windows(20,10)
+(p3<-p2+ scale_fill_manual(breaks = Factor,values = color))
+
+p3 + geom_boxplot(outlier.color="white") + ylab("") +xlab("")+
+  scale_y_continuous(breaks = NULL)+
+  theme_void()+theme(legend.position = "none")
+
+########################### Including the mean
+(p4<-p3+stat_summary(fun=mean, geom="point", shape=18, size=4, color="red", position=position_dodge(0.75)))
+
+########################### With dotplot
+(p5<-p3+geom_dotplot(binaxis='y', stackdir='center', dotsize=0.5,position=position_dodge(0.75)))
+
+########################### With jitter plot
+(p6<-p3+geom_boxplot(outlier.color="red",outlier.size=5)+
+  geom_jitter(aes(fill=Factor),size =1.5,position=position_dodge(0.75)))
+
+########################### Participant ID
+p6+geom_text(aes(label=DF$ID),position=position_jitterdodge(0.55))
+
+### extract ID number
+n_last <- 2                                # Specify number of characters to extract
+DF$Part<-substr(DF$ID, nchar(DF$ID) - n_last + 1, nchar(DF$ID)) # Extract character of interest
+
+p6+geom_text(aes(label=DF$Part),position=position_jitterdodge(0.55))
+
+########################### Labelling outliers
+# https://stackoverflow.com/questions/33524669/labeling-outliers-of-boxplots-in-r
+is_outlier <- function(x) {
+  return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
+}
+
+library(dplyr)
+DF<-DF %>%  group_by(Factor,Time) %>%
+  mutate(Outlier = ifelse(is_outlier(Measure), ID, ""))
+View(DF)
+
+windows(20,10)
+(p7<-p3+geom_text(aes(label=DF$Outlier),position=position_dodge(0.5),size=4.5))
